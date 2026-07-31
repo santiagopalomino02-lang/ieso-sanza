@@ -1,14 +1,11 @@
 name: Deploy to GitHub Pages
-
 on:
   push:
     branches: [main]
-
 permissions:
   contents: read
   pages: write
   id-token: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,7 +19,7 @@ jobs:
           node-version: 20
           cache: 'pnpm'
       - run: pnpm install --no-frozen-lockfile
-      - - run: pnpm run build
+      - run: pnpm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
