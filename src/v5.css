@@ -1,0 +1,1 @@
+.access-list{width:100%;display:grid;grid-template-columns:repeat(2,minmax(210px,1fr));gap:8px;margin-top:4px}.access-list label{background:#f6f9fc;border:1px solid #e2eaf1;border-radius:7px;padding:10px;font-size:11px;color:#425466;display:flex;gap:8px;align-items:center}.access-list input{accent-color:var(--blue)}@media(max-width:760px){.access-list{grid-template-columns:1fr}}
