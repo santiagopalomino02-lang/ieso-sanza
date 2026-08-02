@@ -4,12 +4,19 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, u
 import { motion } from 'framer-motion'
 import { ArrowRight, Award, BookOpen, Check, ChevronRight, CirclePlay, Clock3, FileText, GraduationCap, Lock, Menu, Plus, Search, ShieldCheck, Sparkles, Users, X } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
-import { supabase } from './lib/supabase'
+import { supabase, createTempClient } from './lib/supabase'
 import './styles.css'
 import './admin.css'
 import './v3.css'
 import './v4.css'
 import './v5.css'
+
+// ============================================================
+// USUARIO <-> CORREO SINTÃ‰TICO
+// (el estudiante solo ve "usuario", Supabase por dentro usa correo)
+// ============================================================
+const DOMAIN = '@ieso.local'
+const usernameToEmail = (u: string) => u.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '') + DOMAIN
 
 // ============================================================
 // SESIÃ“N Y PERFIL
@@ -45,7 +52,7 @@ function useSession() {
 }
 
 // ============================================================
-// COMPONENTES BASE (visuales, sin cambios de fondo)
+// COMPONENTES BASE
 // ============================================================
 const Logo = ({ light = false }: { light?: boolean }) =>
   <div className={'logo ' + (light ? 'light' : '')}>
@@ -70,9 +77,7 @@ function Nav({ session, profile }: { session: Session | null; profile: Profile |
               {profile?.role === 'admin' && <Link to="/gestion">GestiÃ³n</Link>}
               <button className="outline-btn" onClick={logout}>Cerrar sesiÃ³n <Lock size={15} /></button>
             </>
-          : <>
-              <Link className="outline-btn" to="/ingresar">Iniciar sesiÃ³n <ArrowRight size={15} /></Link>
-            </>
+          : <Link className="outline-btn" to="/ingresar">Iniciar sesiÃ³n <ArrowRight size={15} /></Link>
         }
       </nav>
       <button className="menu" onClick={() => setOpen(!open)}>{open ? <X /> : <Menu />}</button>
@@ -186,7 +191,7 @@ function ProgramsPage({ session, profile }: { session: Session | null; profile: 
 }
 
 // ============================================================
-// CURSO (mÃ³dulos de un programa, si el estudiante estÃ¡ inscrito)
+// CURSO
 // ============================================================
 type ModuleRow = { id: string; program_id: string; position: number; title: string; content: string | null; material_path: string | null; video_url: string | null }
 
@@ -273,7 +278,7 @@ function CoursePage({ session, profile }: { session: Session | null; profile: Pr
 }
 
 // ============================================================
-// EVALUACIÃ“N (usa questions_public + RPC submit_assessment_attempt)
+// EVALUACIÃ“N
 // ============================================================
 type QuestionPublic = { id: string; program_id: string; module_id: string | null; question: string; options: string[] }
 
@@ -396,15 +401,15 @@ function CertificatePage({ session, profile }: { session: Session | null; profil
 }
 
 // ============================================================
-// LOGIN / REGISTRO
+// LOGIN (usuario y contraseÃ±a; sin auto-registro)
 // ============================================================
 function LoginPage() {
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState('')
+  const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState('')
   const nav = useNavigate()
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')
     if (!supabase) { setError('Supabase no estÃ¡ configurado.'); return }
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email: usernameToEmail(username), password })
     if (authError || !data.session) { setError('No encontramos una cuenta autorizada con estos datos.'); return }
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.session.user.id).single()
     nav(profile?.role === 'admin' ? '/gestion' : '/programas')
@@ -414,46 +419,14 @@ function LoginPage() {
       <Link to="/"><Logo /></Link>
       <div className="login-card">
         <div className="login-symbol"><GraduationCap /></div>
-        <h1>Bienvenido al IESO</h1><p>Ingresa con tu correo y contraseÃ±a.</p>
+        <h1>Bienvenido al IESO</h1><p>Ingresa con las credenciales asignadas por el Instituto.</p>
         <form onSubmit={submit}>
-          <label>Correo<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="username" /></label>
+          <label>Usuario<input value={username} onChange={e => setUsername(e.target.value)} placeholder="Tu usuario" autoComplete="username" /></label>
           <label>ContraseÃ±a<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Tu contraseÃ±a" autoComplete="current-password" /></label>
           {error && <div className="form-error">{error}</div>}
           <button className="primary-btn">Iniciar sesiÃ³n <ArrowRight size={17} /></button>
         </form>
-        <small>Â¿No tienes cuenta? <Link to="/registro">RegÃ­strate aquÃ­</Link>.</small>
-      </div>
-    </main>
-  )
-}
-
-function SignupPage() {
-  const [username, setUsername] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [error, setError] = useState('')
-  const nav = useNavigate()
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setError('')
-    if (!supabase) { setError('Supabase no estÃ¡ configurado.'); return }
-    if (!username.trim()) { setError('Ingresa un nombre de usuario.'); return }
-    const { data, error: authError } = await supabase.auth.signUp({ email, password })
-    if (authError) { setError(authError.message); return }
-    if (!data.session) { setError('Revisa tu correo para confirmar la cuenta antes de iniciar sesiÃ³n.'); return }
-    await supabase.from('profiles').insert({ id: data.session.user.id, username, role: 'student' })
-    nav('/programas')
-  }
-  return (
-    <main className="login-page">
-      <Link to="/"><Logo /></Link>
-      <div className="login-card">
-        <div className="login-symbol"><GraduationCap /></div>
-        <h1>Crea tu cuenta</h1><p>RegÃ­strate para acceder a los programas del IESO.</p>
-        <form onSubmit={submit}>
-          <label>Nombre de usuario<input value={username} onChange={e => setUsername(e.target.value)} placeholder="Tu nombre" /></label>
-          <label>Correo<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="username" /></label>
-          <label>ContraseÃ±a<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Crea una contraseÃ±a" autoComplete="new-password" /></label>
-          {error && <div className="form-error">{error}</div>}
-          <button className="primary-btn">Crear cuenta <ArrowRight size={17} /></button>
-        </form>
-        <small>Â¿Ya tienes cuenta? <Link to="/ingresar">Inicia sesiÃ³n</Link>.</small>
+        <small>Las cuentas son creadas exclusivamente por la administraciÃ³n del IESO.</small>
       </div>
     </main>
   )
@@ -469,7 +442,7 @@ type AttemptRow = { id: string; score: number; passed: boolean; is_final: boolea
 
 function AdminPage({ session, profile }: { session: Session | null; profile: Profile | null }) {
   const nav = useNavigate()
-  const [tab, setTab] = useState<'Programas' | 'MÃ³dulos' | 'Evaluaciones' | 'Accesos' | 'Notas'>('Programas')
+  const [tab, setTab] = useState<'Programas' | 'MÃ³dulos' | 'Evaluaciones' | 'Usuarios' | 'Accesos' | 'Notas'>('Programas')
   const [programs, setPrograms] = useState<ProgramRow[]>([])
   const [modules, setModules] = useState<ModuleRow[]>([])
   const [students, setStudents] = useState<StudentRow[]>([])
@@ -481,6 +454,7 @@ function AdminPage({ session, profile }: { session: Session | null; profile: Pro
   const [selectedStudent, setSelectedStudent] = useState('')
   const [title, setTitle] = useState(''); const [text, setText] = useState(''); const [videoUrl, setVideoUrl] = useState(''); const [materialUrl, setMaterialUrl] = useState('')
   const [options, setOptions] = useState(''); const [correct, setCorrect] = useState(1); const [feedback, setFeedback] = useState('')
+  const [newUsername, setNewUsername] = useState(''); const [newPassword, setNewPassword] = useState('')
   const [message, setMessage] = useState('')
 
   const reload = async () => {
@@ -508,7 +482,7 @@ function AdminPage({ session, profile }: { session: Session | null; profile: Pro
   if (profile && profile.role !== 'admin') return <Navigate to="/programas" replace />
   if (!profile) return null
 
-  const reset = () => { setTitle(''); setText(''); setVideoUrl(''); setMaterialUrl(''); setOptions(''); setFeedback('') }
+  const reset = () => { setTitle(''); setText(''); setVideoUrl(''); setMaterialUrl(''); setOptions(''); setFeedback(''); setNewUsername(''); setNewPassword('') }
 
   const createProgram = async () => {
     if (!title.trim() || !supabase) return
@@ -541,6 +515,17 @@ function AdminPage({ session, profile }: { session: Session | null; profile: Pro
     const { data } = await supabase!.from('questions').select('id,program_id,module_id,question').eq('program_id', selectedProgram); setQuestions(data || [])
   }
 
+  const createStudent = async () => {
+    if (!newUsername.trim() || !newPassword.trim()) { setMessage('Completa usuario y contraseÃ±a.'); return }
+    const temp = createTempClient()
+    if (!temp || !supabase) { setMessage('Supabase no estÃ¡ configurado.'); return }
+    const { data, error } = await temp.auth.signUp({ email: usernameToEmail(newUsername), password: newPassword })
+    if (error || !data.user) { setMessage('No se pudo crear la cuenta: ' + (error?.message || 'error desconocido')); return }
+    const { error: profileError } = await supabase.from('profiles').insert({ id: data.user.id, username: newUsername.trim(), role: 'student' })
+    if (profileError) { setMessage('Cuenta creada, pero fallÃ³ al guardar el perfil: ' + profileError.message); return }
+    setMessage('Cuenta de estudiante creada.'); reset(); reload()
+  }
+
   const toggleAccess = async (programId: string) => {
     if (!selectedStudent || !supabase) return
     const has = enrollments.some(e => e.user_id === selectedStudent && e.program_id === programId)
@@ -555,9 +540,9 @@ function AdminPage({ session, profile }: { session: Session | null; profile: Pro
     <div className="admin">
       <aside className="admin-nav">
         <Logo light /><div className="admin-label">ADMINISTRACIÃ“N</div>
-        {(['Programas', 'MÃ³dulos', 'Evaluaciones', 'Accesos', 'Notas'] as const).map(t =>
+        {(['Programas', 'MÃ³dulos', 'Evaluaciones', 'Usuarios', 'Accesos', 'Notas'] as const).map(t =>
           <a className={tab === t ? 'active' : ''} onClick={() => { setTab(t); setMessage(''); reset() }} key={t}>
-            {t === 'Programas' && <BookOpen size={18} />}{t === 'MÃ³dulos' && <FileText size={18} />}{t === 'Evaluaciones' && <FileText size={18} />}{t === 'Accesos' && <Users size={18} />}{t === 'Notas' && <Award size={18} />}
+            {t === 'Programas' && <BookOpen size={18} />}{t === 'MÃ³dulos' && <FileText size={18} />}{t === 'Evaluaciones' && <FileText size={18} />}{t === 'Usuarios' && <Users size={18} />}{t === 'Accesos' && <Users size={18} />}{t === 'Notas' && <Award size={18} />}
             {t}
           </a>
         )}
@@ -612,6 +597,19 @@ function AdminPage({ session, profile }: { session: Session | null; profile: Pro
           </section>
         </>}
 
+        {tab === 'Usuarios' && <>
+          <section className="admin-form">
+            <h2>Crear cuenta de estudiante</h2>
+            <input value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="Usuario" />
+            <input value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="ContraseÃ±a" />
+            <button className="add-btn" onClick={createStudent}><Plus size={17} />Crear cuenta</button>
+          </section>
+          <section className="admin-table">
+            <div className="table-head"><div><h2>Usuarios autorizados</h2></div></div>
+            {students.length ? students.map(s => <div className="tr" key={s.id}><span><b>{s.username}</b></span><span>Estudiante</span></div>) : <p className="empty">AÃºn no hay cuentas de estudiantes creadas.</p>}
+          </section>
+        </>}
+
         {tab === 'Accesos' && <>
           <section className="admin-form">
             <h2>AutorizaciÃ³n por programa</h2>
@@ -651,7 +649,6 @@ function App() {
       <Route path="/evaluacion/:id" element={<AssessmentPage session={session} profile={profile} />} />
       <Route path="/certificado/:id" element={<CertificatePage session={session} profile={profile} />} />
       <Route path="/ingresar" element={<LoginPage />} />
-      <Route path="/registro" element={<SignupPage />} />
       <Route path="/gestion" element={<AdminPage session={session} profile={profile} />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
