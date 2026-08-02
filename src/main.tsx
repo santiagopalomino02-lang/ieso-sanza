@@ -1,3 +1,8 @@
+import React, { useState, useEffect } from 'react'
+import { createRoot } from 'react-dom/client'
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { ArrowRight, Award, BookOpen, Check, ChevronRight, CirclePlay, Clock3, FileText, GraduationCap, Lock, Menu, Plus, Search, ShieldCheck, Sparkles, Users, X } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import './styles.css'
